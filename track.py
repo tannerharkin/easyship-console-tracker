@@ -23,19 +23,24 @@ from xml.dom import minidom
 import argparse
 
 import requests
-from rich.console import Console
-from rich.table import Table
-from rich.panel import Panel
-from rich import box
-from rich.text import Text
-from rich.columns import Columns
-
 
 SITEKEY  = "6Ld5iaoaAAAAAHu4CNSoKnF97sO3H_w23R5Dzt6K" # reCAPTCHA site key
 DOMAIN   = "https://www.trackmyshipment.co:443"
 API_BASE = "https://api.easyship.com/api"
 
-console = Console(highlight=False)
+console = None  # lazily initialised Rich Console (only for --format=pretty)
+
+
+def _init_rich():
+    """Import Rich and set up the console. Called only when pretty output is needed."""
+    global console
+    try:
+        from rich.console import Console
+        console = Console(highlight=False)
+    except ImportError:
+        print("Error: the 'rich' package is required for pretty output.", file=sys.stderr)
+        print("Install it with:  pip install rich", file=sys.stderr)
+        sys.exit(1)
 
 #
 #  reCAPTCHA
@@ -98,10 +103,17 @@ def get_recaptcha_token() -> str:
 #
 
 def fetch_tracking(tracking_number: str) -> dict:
-    with console.status("[bold cyan]Fetching reCAPTCHA token…[/]", spinner="dots"):
+    if console is not None:
+        with console.status("[bold cyan]Fetching reCAPTCHA token…[/]", spinner="dots"):
+            token = get_recaptcha_token()
+        with console.status(f"[bold cyan]Querying API for [yellow]{tracking_number}[/]…[/]", spinner="dots"):
+            r = requests.get(
+                f"{API_BASE}/v1/track/{tracking_number}",
+                headers={"recaptcha-token": token},
+                timeout=15,
+            )
+    else:
         token = get_recaptcha_token()
-
-    with console.status(f"[bold cyan]Querying API for [yellow]{tracking_number}[/]…[/]", spinner="dots"):
         r = requests.get(
             f"{API_BASE}/v1/track/{tracking_number}",
             headers={"recaptcha-token": token},
@@ -109,7 +121,7 @@ def fetch_tracking(tracking_number: str) -> dict:
         )
 
     if not r.ok:
-        console.print(f"[bold red]API error {r.status_code}:[/] {r.text}")
+        print(f"API error {r.status_code}: {r.text}", file=sys.stderr)
         sys.exit(1)
 
     return r.json()
@@ -145,6 +157,10 @@ def _flatten(d: dict, tracking_number: str) -> dict:
 
 
 def output_pretty(d: dict, tracking_number: str) -> None:
+    from rich.table import Table
+    from rich.panel import Panel
+    from rich import box
+
     status      = d.get("last_status_message") or {}
     dates       = d.get("track_dates") or {}
     checkpoints = d.get("checkpoints") or []
@@ -278,9 +294,9 @@ def main():
     )
     args = parser.parse_args()
 
-    # Suppress rich status spinners for machine/scripting outputs
-    if args.format != "pretty":
-        console.quiet = True
+    # Only load Rich when pretty output is requested
+    if args.format == "pretty":
+        _init_rich()
 
     data = fetch_tracking(args.tracking_number.strip())
     FORMATTERS[args.format](data, args.tracking_number.strip())
