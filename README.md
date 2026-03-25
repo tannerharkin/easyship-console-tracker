@@ -7,7 +7,13 @@ Reverse-engineered from [trackmyshipment.co](https://www.trackmyshipment.co). Ha
 ## Requirements
 
 ```
-pip install requests rich
+pip install requests
+```
+
+For human-readable terminal output (`--format pretty`, the default):
+
+```
+pip install rich
 ```
 
 ## Usage

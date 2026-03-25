@@ -6,7 +6,7 @@ Usage:
   python track.py <TRACKING_NUMBER> [--format=pretty|json|xml|kv]
 
 Formats:
-  pretty  (default) Rich-formatted terminal output
+  pretty  (default) Rich-formatted terminal output (requires 'rich' package)
   json    Raw JSON from the API
   xml     XML document
   kv      KEY=VALUE pairs suitable for scripting / eval
